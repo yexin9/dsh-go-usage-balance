@@ -1,0 +1,55 @@
+{
+  "name": "dsh-go-usage-balance",
+  "version": "0.1.0",
+  "description": "Balance, token usage and estimated cost for the dsh-go phone app: status strip, panel and per-turn notes.",
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh-go",
+    "deepseek-harness",
+    "deepseek",
+    "plugin",
+    "usage",
+    "balance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yexin9/dsh-go-usage-balance.git"
+  },
+  "homepage": "https://github.com/yexin9/dsh-go-usage-balance#readme",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.2 <0.3.0-0",
+    "node": ">=22.19"
+  },
+  "dshGo": {
+    "v": 1,
+    "title": { "zh": "用量与余额", "en": "Usage & balance" },
+    "icon": "wallet",
+    "contributes": {
+      "composer.strip": [
+        { "id": "usage", "icon": "wallet", "panel": "stats" }
+      ],
+      "panels": [
+        {
+          "id": "stats",
+          "title": { "zh": "用量与余额", "en": "Usage & balance" },
+          "icon": "chart",
+          "placement": ["session.tab", "chat.panel", "features"]
+        }
+      ],
+      "turn.note": [{ "id": "turn" }]
+    }
+  }
+}
