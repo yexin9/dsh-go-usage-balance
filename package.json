@@ -1,6 +1,6 @@
 {
   "name": "dsh-go-usage-balance",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Balance, token usage and estimated cost for the dsh-go phone app: status strip, panel and per-turn notes.",
   "type": "module",
   "main": "lib/index.js",
@@ -35,21 +35,39 @@
   },
   "dshGo": {
     "v": 1,
-    "title": { "zh": "用量与余额", "en": "Usage & balance" },
+    "title": {
+      "zh": "用量与余额",
+      "en": "Usage & balance"
+    },
     "icon": "wallet",
     "contributes": {
       "composer.strip": [
-        { "id": "usage", "icon": "wallet", "panel": "stats" }
+        {
+          "id": "usage",
+          "icon": "wallet",
+          "panel": "stats"
+        }
       ],
       "panels": [
         {
           "id": "stats",
-          "title": { "zh": "用量与余额", "en": "Usage & balance" },
+          "title": {
+            "zh": "用量与余额",
+            "en": "Usage & balance"
+          },
           "icon": "chart",
-          "placement": ["session.tab", "chat.panel", "features"]
+          "placement": [
+            "session.tab",
+            "chat.panel",
+            "features"
+          ]
         }
       ],
-      "turn.note": [{ "id": "turn" }]
+      "turn.note": [
+        {
+          "id": "turn"
+        }
+      ]
     }
   }
 }
