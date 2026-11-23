@@ -53,11 +53,11 @@ function makeHost(options = {}) {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-function readPanel(captured, sessionId) {
+function readPanel(captured, sessionId, locale = 'zh-CN') {
   let data = null
   const cancel = captured.panel.data({ sessionId }, (value) => {
     data = value
-  }, { locale: 'zh-CN' })
+  }, { locale })
   cancel()
   return data
 }
@@ -238,6 +238,57 @@ test('冷会话折叠成汇总，重新打开后继续累计', () => {
   assert.equal(after.rows.length, 1, '重新打开后只显示新轮次')
   assert.notEqual(costOf(after, '本对话'), costOf(before, '本对话'), '新轮次应继续累计')
   host.dispose()
+})
+
+test('英文环境下面板与状态条用英文', () => {
+  mod.__reset()
+  const host = makeHost()
+  const panel = readPanel(host.captured, undefined, 'en-US')
+  const stripCancel = host.captured.strip({ sessionId: undefined }, () => {}, { locale: 'en-US' })
+  const view = host.captured.panel.view({}, { locale: 'en-US' })
+  host.dispose()
+  stripCancel()
+  assert.equal(panel.summaryRows[0][0], 'This chat')
+  assert.equal(panel.summaryRows[1][0], 'Today')
+  assert.equal(view.children[1].columns[0], 'Item')
+  assert.equal(view.children[2].label, 'Details')
+})
+
+test('逐轮表记录每轮使用的完整模型名', () => {
+  mod.__reset()
+  const host = makeHost()
+  host.captured.event({ id: 'm1' }, { type: 'request/context', data: { model: 'deepseek-flash', provider: 'deepseek-account' } })
+  host.captured.event({ id: 'm1' }, {
+    type: 'assistant/message',
+    seq: 1,
+    time: Date.now(),
+    data: { turn: 1, usage: { inputTokens: 1000, outputTokens: 100, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 1100 } },
+  })
+  const panel = readPanel(host.captured, 'm1')
+  host.dispose()
+  assert.equal(panel.rows[0][1], 'deepseek-flash')
+  assert.equal(panel.rows[0][0], '1')
+})
+
+test('手动「价目」按钮会强制重新拉取并更新', async () => {
+  mod.__reset()
+  const realFetch = globalThis.fetch
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      'gpt-test': { input_cost_per_token: 2.5e-06, output_cost_per_token: 1.5e-05, cache_read_input_token_cost: 2.5e-07 },
+    }),
+  })
+  try {
+    const host = makeHost()
+    const result = host.captured.panel.actions.prices({}, { locale: 'zh-CN' })
+    await wait(80)
+    assert.match(result.toast, /价目/)
+    assert.ok(mod.__state().remote.count >= 1, '应写入价目缓存')
+    host.dispose()
+  } finally {
+    globalThis.fetch = realFetch
+  }
 })
 
 test('卸载后清掉定时器与订阅，不留僵尸轮询', () => {

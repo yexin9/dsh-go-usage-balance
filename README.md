@@ -12,7 +12,7 @@
 |---|---|
 | 输入框上方状态条 | `本次¥0.08·对话¥2.60·今日¥1.06`，点一下打开面板 |
 | 面板 | 余额 + `项目 / 花费 / tokens` 表格（本次、本对话、今日、近 7 天） |
-| 面板「明细」 | 本对话与今日的输入 / 输出 / 缓存 / 命中率 / 请求数、当前模型价目、最近 8 轮 |
+| 面板「明细」 | 本对话与今日的输入 / 输出 / 缓存 / 命中率 / 请求数、当前模型价目、最近 8 轮（含每轮模型名） |
 | 每条回复脚注 | `↑94k ↓65.8k`（这一轮的输入 / 输出 token） |
 | 整块面板配色 | DeepSeek 空闲时段绿色底、高峰橙色底；其他模型蓝色底；查不到价灰底 |
 
@@ -20,6 +20,8 @@
 
 - **本次** = 最近一轮回复；**对话** = 本对话累计；**今日** = 本机所有会话当天累计。
 - 状态条上限 24 字，放不下时先把花费缩成一位小数，再不行省略「本次」，不截断文字。
+- 面板跟随 App 语言显示中文或英文（`caps.locale`），单位、表头、提示都会切换。
+- 面板底部两个按钮：**刷新**（重取余额和日志）与 **价目**（强制重新拉取远程价目表）。
 - 统一 15 秒轮询，新事件到达时立即刷新，不用等下一次。
 
 ## 数据与口径
@@ -133,7 +135,7 @@ npm test                                            # 仓库自带测试
 node ~/.dsh/skills/dsh-go-plugin/kit/bin/check.mjs . --load   # dsh-go 插件自查
 ```
 
-`npm test` 覆盖 9 个行为：
+`npm test` 覆盖 12 个行为：
 
 | 测试 | 验证点 |
 |---|---|
@@ -145,9 +147,16 @@ node ~/.dsh/skills/dsh-go-plugin/kit/bin/check.mjs . --load   # dsh-go 插件自
 | 手动刷新中止在途请求 | 旧结果不覆盖新值 |
 | 余额字段缺失 | 显示「—」而不是 ¥0.00 |
 | 冷会话折叠 | 汇总保留、明细释放、重开后继续累计 |
+| 英文环境 | 面板与状态条切换英文 |
+| 逐轮模型 | 每轮记录完整模型名 |
+| 价目按钮 | 强制重拉并更新 |
 | 卸载后清掉定时器与订阅 | 无僵尸轮询 |
 
-代码分两块：`lib/index.js`（价目与目录、用量账本、余额、轮询与插件入口）和 `lib/view.js`（面板组件树，纯数据驱动）。改了 `lib/` 里的代码后需要在 App 的「引擎」页重启引擎才生效；改 `package.json` 清单会自动重读。
+代码分三块：`lib/index.js`（价目与目录、用量账本、余额、轮询与插件入口）、`lib/view.js`（面板组件树）、`lib/i18n.js`（中英文案）。改了 `lib/` 里的代码后需要在 App 的「引擎」页重启引擎才生效；改 `package.json` 清单会自动重读。
+
+## English
+
+A native dsh-go plugin showing DeepSeek balance, token usage and estimated cost: a status strip (`this turn / this chat / today`), a panel with balance, per-model prices and recent turns, and a per-reply token note. Costs are estimates: DeepSeek uses official peak/off-peak CNY prices, other models use pi-ai / LiteLLM catalog prices in USD. All data stays on the device; only the DeepSeek balance endpoint and a static price JSON are fetched. Install with `dsh plugin --profile web add github:yexin9/dsh-go-usage-balance`.
 
 ## License
 
