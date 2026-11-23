@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -288,6 +288,34 @@ test('手动「价目」按钮会强制重新拉取并更新', async () => {
     host.dispose()
   } finally {
     globalThis.fetch = realFetch
+  }
+})
+
+test('目录价里的缓存写入也计入花费', () => {
+  mod.__reset()
+  const cacheDir = join(home, 'cache', 'dsh-go-usage-balance')
+  mkdirSync(cacheDir, { recursive: true })
+  const cacheFile = join(cacheDir, 'prices.json')
+  writeFileSync(cacheFile, JSON.stringify({
+    fetchedAt: Date.now(),
+    prices: { 'x-write': { name: '', input: 1, output: 2, cacheRead: 0.1, cacheWrite: 3 } },
+  }))
+  try {
+    const host = makeHost()
+    host.captured.event({ id: 'w1' }, { type: 'request/context', data: { model: 'x-write', provider: 'relay' } })
+    host.captured.event({ id: 'w1' }, {
+      type: 'assistant/message',
+      seq: 1,
+      time: Date.now(),
+      data: { turn: 1, usage: { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 1_000_000, totalTokens: 2_000_000 } },
+    })
+    const panel = readPanel(host.captured, 'w1')
+    host.dispose()
+    // 1M 输入 × $1 + 1M 缓存写入 × $3 = $4.00
+    assert.equal(panel.summaryRows[0][1], '$4.00')
+  } finally {
+    rmSync(cacheFile, { force: true })
+    mod.__reset()
   }
 })
 
