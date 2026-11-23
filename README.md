@@ -45,7 +45,7 @@
 |---|---|---|
 | `deepseek-flash` | 人民币 | 官方价：输入未命中 ¥1、命中 ¥0.02、输出 ¥4（每百万 tokens）；工作日 9:00-12:00、14:00-18:00 高峰价翻倍 |
 | `deepseek-v4-pro` | 人民币 | 输入未命中 ¥4.5、命中 ¥0.15、输出 ¥13.5（高峰翻倍） |
-| GPT / Gemini / Claude 等 | 美元 | 先读 pi-ai 自带模型目录的美元价；目录里没有的，自动拉 LiteLLM 公开价目表 |
+| GPT / Gemini / Claude 等 | 美元 | pi-ai 目录 → models.dev（官方提供方优先）→ LiteLLM → OpenRouter，多源合并去重 |
 | 目录里都没有 | — | 面板标「价目未收录」，不计花费 |
 
 - 人民币和美元分别显示、分别累计（例如 `今日 ¥1.20+$0.35`），不做汇率换算。
@@ -59,7 +59,7 @@
 - **单一定时器 + 空闲降频**：所有视图共用一个定时器；有活动时 15 秒一轮，安静 2 分钟后自动降到 60 秒一轮；第一个视图出现时启动、最后一个关闭时停止，`unref()` 不阻止进程退出。
 - **生命周期清理**：插件卸载时清掉定时器、丢弃订阅、中止进行中的请求（`AbortController`），不留后台任务；视图关闭后订阅数归零，定时器随之停止。
 - **刷新竞态**：手动「刷新」会中止在途的余额请求并强制重取，旧请求的结果按代次丢弃，不会覆盖新值，也不会堆积请求。
-- **缓存**：余额 5 分钟、价目 7 天、日志按 mtime 增量、目录 1 分钟内不重复扫描。
+- **缓存与自动更新**：余额 5 分钟、价目 24 小时（过期由轮询自动后台刷新，也可点「价目」按钮强制）、日志按 mtime 增量、目录 1 分钟内不重复扫描。
 - **失败退避**：余额从 30 秒起、每次翻倍、10 分钟封顶；远程价目从 30 秒起、每次翻倍、6 小时封顶；同一时刻各只有一个请求。
 - **不误报**：余额区分「查询中 / 暂不可用 / 未配置」，价目区分「查询中 / 未收录」，有缓存值时继续显示旧值；余额字段缺失或解析异常显示「—」，绝不伪装成 ¥0.00。
 - **兜底有边界**：账号服务 6 秒超时；直连余额接口 10 秒超时；价目下载 60 秒超时。超时后走失败退避，不无限挂起。
@@ -107,7 +107,7 @@ dsh plugin --profile web add /path/to/dsh-go-usage-balance
 说明 API Key 和 DeepSeek 账号都没取到余额，检查网络或账号登录；插件会按退避自动重试，不用手动刷新。
 
 **花费显示 ¥0.00 或「价目未收录」？**
-这个模型不在 DeepSeek 价目、pi-ai 目录和 LiteLLM 表里。等自动拉取完成，或者在 `PRICES` 里手动加一条。
+这个模型不在 DeepSeek 价目、pi-ai 目录、models.dev、LiteLLM 和 OpenRouter 里。等自动拉取完成，或者在 `PRICES` 里手动加一条。
 
 **花费和官方账单对不上？**
 估算值：缓存读写、高峰时段、节假日、阶梯计价、中转加价都会造成差异，以账单为准。
@@ -136,7 +136,7 @@ npm test                                            # 仓库自带测试
 node ~/.dsh/skills/dsh-go-plugin/kit/bin/check.mjs . --load   # dsh-go 插件自查
 ```
 
-`npm test` 覆盖 13 个行为：
+`npm test` 覆盖 15 个行为：
 
 | 测试 | 验证点 |
 |---|---|
@@ -152,13 +152,15 @@ node ~/.dsh/skills/dsh-go-plugin/kit/bin/check.mjs . --load   # dsh-go 插件自
 | 逐轮模型 | 每轮记录完整模型名 |
 | 价目按钮 | 强制重拉并更新 |
 | 缓存写入计费 | 目录提供 cacheWrite 价时计入 |
+| 价目过期自动刷新 | 超过 24 小时的本地缓存会在后台重拉 |
+| models.dev 官方优先 | 同名模型不取转售商价格 |
 | 卸载后清掉定时器与订阅 | 无僵尸轮询 |
 
 代码分三块：`lib/index.js`（价目与目录、用量账本、余额、轮询与插件入口）、`lib/view.js`（面板组件树）、`lib/i18n.js`（中英文案）。改了 `lib/` 里的代码后需要在 App 的「引擎」页重启引擎才生效；改 `package.json` 清单会自动重读。
 
 ## English
 
-A native dsh-go plugin showing DeepSeek balance, token usage and estimated cost: a status strip (`this turn / this chat / today`), a panel with balance, per-model prices and recent turns, and a per-reply token note. Costs are estimates: DeepSeek uses official peak/off-peak CNY prices, other models use pi-ai / LiteLLM catalog prices in USD. All data stays on the device; only the DeepSeek balance endpoint and a static price JSON are fetched. Install with `dsh plugin --profile web add github:yexin9/dsh-go-usage-balance`.
+A native dsh-go plugin showing DeepSeek balance, token usage and estimated cost: a status strip (`this turn / this chat / today`), a panel with balance, per-model prices and recent turns, and a per-reply token note. Costs are estimates: DeepSeek uses official peak/off-peak CNY prices, other models use pi-ai, models.dev, LiteLLM and OpenRouter catalog prices in USD, refreshed every 24 hours. All data stays on the device; only the DeepSeek balance endpoint and a static price JSON are fetched. Install with `dsh plugin --profile web add github:yexin9/dsh-go-usage-balance`.
 
 ## License
 

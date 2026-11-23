@@ -158,11 +158,11 @@ test('远程价目拉取失败进入退避，不重复打请求', async () => {
     const first = mod.__state().remote
     assert.ok(first.failures >= 1, '失败应记录')
     assert.ok(first.nextAt > Date.now(), '失败应进入退避')
-    assert.equal(calls, 2, `应为 2 个价目源各请求一次，实际 ${calls}`)
+    assert.equal(calls, 4, `应为 4 个价目源各请求一次，实际 ${calls}`)
     // 退避期内再次查询不应再发请求
     host.captured.panel.data({ sessionId: 'u1' }, () => {}, { locale: 'zh-CN' })
     await wait(80)
-    assert.equal(calls, 2, `退避期内不应重复请求，实际 ${calls}`)
+    assert.equal(calls, 4, `退避期内不应重复请求，实际 ${calls}`)
     host.dispose()
   } finally {
     globalThis.fetch = realFetch
@@ -317,6 +317,56 @@ test('目录价里的缓存写入也计入花费', () => {
     rmSync(cacheFile, { force: true })
     mod.__reset()
   }
+})
+
+test('价目缓存过期后自动后台刷新', async () => {
+  mod.__reset()
+  const cacheDir = join(home, 'cache', 'dsh-go-usage-balance')
+  mkdirSync(cacheDir, { recursive: true })
+  const cacheFile = join(cacheDir, 'prices.json')
+  writeFileSync(cacheFile, JSON.stringify({
+    fetchedAt: Date.now() - 30 * 86_400_000,
+    prices: { 'old-model': { name: '', input: 1, output: 2, cacheRead: 0, cacheWrite: 0 } },
+  }))
+  const realFetch = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls += 1
+    return {
+      ok: true,
+      json: async () => ({ 'fresh-model': { input_cost_per_token: 1e-06, output_cost_per_token: 2e-06 } }),
+    }
+  }
+  try {
+    const host = makeHost()
+    // 触发一次未知模型计费，读取本地价目缓存
+    host.captured.event({ id: 'stale' }, { type: 'request/context', data: { model: 'old-model', provider: 'relay' } })
+    host.captured.event({ id: 'stale' }, {
+      type: 'assistant/message',
+      seq: 1,
+      time: Date.now(),
+      data: { turn: 1, usage: { inputTokens: 1000, outputTokens: 100, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 1100 } },
+    })
+    mod.__tick()
+    await wait(80)
+    assert.ok(calls > 0, '过期缓存应触发刷新')
+    assert.ok(mod.__state().remote.count >= 1)
+    host.dispose()
+  } finally {
+    globalThis.fetch = realFetch
+    rmSync(cacheFile, { force: true })
+    mod.__reset()
+  }
+})
+
+test('models.dev 同名模型优先官方报价', () => {
+  const parsed = mod.__parse.modelsDev({
+    cortecs: { models: { 'gpt-5.4': { cost: { input: 2.844, output: 17.058 } } } },
+    openai: { models: { 'gpt-5.4': { name: 'GPT-5.4', cost: { input: 2.5, output: 15 } } } },
+  })
+  assert.equal(parsed['gpt-5.4'].input, 2.5, '裸模型名应取官方价')
+  assert.equal(parsed['openai/gpt-5.4'].input, 2.5)
+  assert.equal(parsed['cortecs/gpt-5.4'].input, 2.844, '转售商保留带前缀的键')
 })
 
 test('卸载后清掉定时器与订阅，不留僵尸轮询', () => {
