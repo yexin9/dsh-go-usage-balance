@@ -365,8 +365,8 @@ test('models.dev 同名模型优先官方报价', () => {
     openai: { models: { 'gpt-5.4': { name: 'GPT-5.4', cost: { input: 2.5, output: 15 } } } },
   })
   assert.equal(parsed['gpt-5.4'].input, 2.5, '裸模型名应取官方价')
-  assert.equal(parsed['openai/gpt-5.4'].input, 2.5)
-  assert.equal(parsed['cortecs/gpt-5.4'].input, 2.844, '转售商保留带前缀的键')
+  assert.equal(parsed['openai/gpt-5.4'].input, 2.5, '官方提供方保留带前缀键')
+  assert.equal(parsed['cortecs/gpt-5.4'], undefined, '转售商不保留带前缀键')
 })
 
 test('卸载后清掉定时器与订阅，不留僵尸轮询', () => {
