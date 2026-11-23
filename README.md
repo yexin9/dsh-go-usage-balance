@@ -14,8 +14,9 @@
 - **用量**：只读本机会话日志（`$DSH_HOME/sessions`），不估算、不联网。
 - **花费**：估算，**不是账单**。
   - DeepSeek（`deepseek-flash` / `deepseek-v4-pro`）：按 [官方价目](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/) 计人民币，高峰时段为北京时间工作日 9:00-12:00、14:00-18:00，价格翻倍；法定节假日未单独判断。价目在 `lib/index.js` 的 `PRICES`。
-  - GPT / Gemini / Claude 等其他模型：直接读 pi-ai 自带的模型目录（`@earendil-works/pi-ai/dist/providers/data`）里的美元价，新模型随目录更新自动生效，不用改代码。
-  - 两种货币分别显示（例如 `¥1.20+$0.35`），不换算。目录里查不到的模型（一般是自己接的中转）不计花费，面板会标「价目未收录」。
+  - GPT / Gemini / Claude 等其他模型：先读 pi-ai 自带的模型目录（`@earendil-works/pi-ai/dist/providers/data`）的美元价；目录里没有的，再自动拉 [LiteLLM 公开价目表](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json)（7000+ 模型），缓存 7 天到 `$DSH_HOME/cache/dsh-go-usage-balance/prices.json`。拉到价目后，之前查不到价的轮次会自动补算。
+  - 两种货币分别显示（例如 `¥1.20+$0.35`），不换算。两处都查不到的模型（自建中转私有的名字）才不计花费，面板标「价目未收录」，可以手动告诉我加。
+  - 拉价目只是下载一个公开 JSON 文件，不会把模型名或任何本机信息发出去。
 
 统计口径：子智能体算进「今日」，不算「本对话」；日期按主机本地时区分天。第一次打开面板会扫一遍历史会话（几秒），之后只读变过的日志。
 
