@@ -1,6 +1,6 @@
 {
   "name": "dsh-go-usage-balance",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Balance, token usage and estimated cost for the dsh-go phone app: status strip, panel and per-turn notes.",
   "type": "module",
   "main": "lib/index.js",

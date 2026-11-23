@@ -169,6 +169,47 @@ test('远程价目拉取失败进入退避，不重复打请求', async () => {
   }
 })
 
+test('手动刷新会中止在途请求，旧结果不会覆盖新值', async () => {
+  mod.__reset()
+  let call = 0
+  const host = makeHost({
+    account: {
+      getBalance: async () => {
+        call += 1
+        if (call === 1) {
+          await wait(500)
+          return { status: 'ready', value: [{ currency: 'CNY', balance: '99.00' }], bonusWallets: [] }
+        }
+        return { status: 'ready', value: [{ currency: 'CNY', balance: '20.00' }], bonusWallets: [] }
+      },
+    },
+    credentials: { resolve: async () => ({ value: '' }) },
+  })
+  // 先启动一次自动查询（第一次很慢）
+  host.captured.strip({ sessionId: undefined }, () => {}, { locale: 'zh-CN' })
+  await wait(30)
+  // 手动刷新：应中止旧请求并强制新读
+  await host.captured.panel.actions.refresh({}, { locale: 'zh-CN' })
+  assert.equal(readPanel(host.captured, undefined).balance, '¥20.00')
+  await wait(600)
+  assert.equal(readPanel(host.captured, undefined).balance, '¥20.00', '旧请求的结果不能覆盖')
+  host.dispose()
+})
+
+test('余额字段缺失时显示 —，不伪装成 0 元', async () => {
+  mod.__reset()
+  const host = makeHost({
+    account: { getBalance: async () => ({ status: 'ready', value: [{ currency: 'CNY' }], bonusWallets: [] }) },
+    credentials: { resolve: async () => ({ value: '' }) },
+  })
+  host.captured.strip({ sessionId: undefined }, () => {}, { locale: 'zh-CN' })
+  await wait(60)
+  const panel = readPanel(host.captured, undefined)
+  host.dispose()
+  assert.equal(panel.balance, '—')
+  assert.notEqual(panel.balance, '¥0.00')
+})
+
 test('卸载后清掉定时器与订阅，不留僵尸轮询', () => {
   mod.__reset()
   const host = makeHost()
