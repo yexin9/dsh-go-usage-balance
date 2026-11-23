@@ -210,6 +210,36 @@ test('余额字段缺失时显示 —，不伪装成 0 元', async () => {
   assert.notEqual(panel.balance, '¥0.00')
 })
 
+test('冷会话折叠成汇总，重新打开后继续累计', () => {
+  mod.__reset()
+  const host = makeHost()
+  const costOf = (panel, label) => panel.summaryRows.find((row) => row[0] === label)?.[1]
+  const oldTime = Date.now() - 10 * 86_400_000
+  host.captured.event({ id: 'old1' }, { type: 'request/context', data: { model: 'deepseek-flash', provider: 'deepseek-account' } })
+  host.captured.event({ id: 'old1' }, {
+    type: 'assistant/message',
+    seq: 1,
+    time: oldTime,
+    data: { turn: 1, usage: { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 1_000_000 } },
+  })
+  readPanel(host.captured, 'old1') // 触发一次扫描，执行折叠
+  assert.ok(mod.__state().ledger.cold >= 1, '超过 8 天的会话应被折叠')
+  const before = readPanel(host.captured, 'old1')
+  assert.equal(before.rows.length, 0, '折叠后不再有逐轮明细')
+  assert.notEqual(costOf(before, '本对话'), '¥0.00', '汇总花费应保留')
+
+  host.captured.event({ id: 'old1' }, {
+    type: 'assistant/message',
+    seq: 2,
+    time: Date.now(),
+    data: { turn: 2, usage: { inputTokens: 0, outputTokens: 1_000_000, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 1_000_000 } },
+  })
+  const after = readPanel(host.captured, 'old1')
+  assert.equal(after.rows.length, 1, '重新打开后只显示新轮次')
+  assert.notEqual(costOf(after, '本对话'), costOf(before, '本对话'), '新轮次应继续累计')
+  host.dispose()
+})
+
 test('卸载后清掉定时器与订阅，不留僵尸轮询', () => {
   mod.__reset()
   const host = makeHost()
